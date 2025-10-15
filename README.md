@@ -122,7 +122,7 @@ The easiest way to install Todoist MCP is using Smithery:
 
 ```bash
 # For Claude Desktop
-npx -y @smithery/cli install @Hint-Services/mcp-todoist --client claude
+npx -y @smithery/cli install @Hint-Services/mcp-todoist
 
 # For Cursor
 npx -y @smithery/cli install @Hint-Services/mcp-todoist --client cursor
