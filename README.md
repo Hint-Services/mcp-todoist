@@ -1,5 +1,5 @@
 [![smithery badge](https://smithery.ai/badge/@Hint-Services/mcp-todoist)](https://smithery.ai/server/@Hint-Services/mcp-todoist)
-[![npm version](https://img.shields.io/npm/v/mcp-todoist)](https://www.npmjs.com/package/mcp-todoist)
+[![npm version](https://img.shields.io/npm/v/@hoffination/mcp-todoist)](https://www.npmjs.com/package/@hoffination/mcp-todoist)
 
 # Todoist MCP Server
 
@@ -137,7 +137,7 @@ npx -y @smithery/cli install @Hint-Services/mcp-todoist --client cline
 ### Manual Installation
 
 ```bash
-npm install mcp-todoist
+npm install @hoffination/mcp-todoist
 ```
 
 ## Configuration
@@ -149,7 +149,7 @@ Add the server to your MCP settings file with the following configuration:
   "mcpServers": {
     "todoist": {
       "command": "npx",
-      "args": ["-y", "mcp-todoist"],
+      "args": ["-y", "@hoffination/mcp-todoist"],
       "env": {
         "TODOIST_API_TOKEN": "your-todoist-api-token"
       }

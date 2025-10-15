@@ -1090,13 +1090,11 @@ export class TodoistClient {
                   }
 
                   // Build move args with exactly one destination
-                  const moveArgs: MoveTaskArgs = {};
-                  if (taskData.project_id)
-                    moveArgs.projectId = taskData.project_id;
-                  if (taskData.section_id)
-                    moveArgs.sectionId = taskData.section_id;
-                  if (taskData.parent_id)
-                    moveArgs.parentId = taskData.parent_id;
+                  const moveArgs: MoveTaskArgs = taskData.project_id
+                    ? { projectId: taskData.project_id }
+                    : taskData.section_id
+                      ? { sectionId: taskData.section_id }
+                      : { parentId: taskData.parent_id! };
 
                   const movedTasks = await this.moveTasks([taskId], moveArgs);
                   return { success: true, task: movedTasks[0] };
@@ -1164,10 +1162,11 @@ export class TodoistClient {
           }
 
           // Build move args
-          const moveArgs: MoveTaskArgs = {};
-          if (params.project_id) moveArgs.projectId = params.project_id;
-          if (params.section_id) moveArgs.sectionId = params.section_id;
-          if (params.parent_id) moveArgs.parentId = params.parent_id;
+          const moveArgs: MoveTaskArgs = params.project_id
+            ? { projectId: params.project_id }
+            : params.section_id
+              ? { sectionId: params.section_id }
+              : { parentId: params.parent_id! };
 
           const movedTasks = await this.moveTasks([taskId], moveArgs);
 
