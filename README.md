@@ -43,6 +43,11 @@ Todoist is one of the most popular task management platforms, helping millions o
   - Modify any task property
   - Support for batch updates
 
+- **todoist_move_task**: Move tasks to different projects, sections, or parents
+  - Change task location (use instead of update for moving)
+  - Move to a different project, section, or make it a subtask
+  - Support for batch moves
+
 - **todoist_delete_task**: Delete tasks by ID or name
   - Support for batch deletion
 
@@ -245,6 +250,18 @@ Add the server to your MCP settings file with the following configuration:
 }
 ```
 
+### Moving Tasks to Different Projects
+
+```json
+{
+  "tool": "todoist_move_task",
+  "arguments": {
+    "task_id": "6f624qq0GfvXJR9C",
+    "project_id": "6XvWFBgqvg9qPVH2"
+  }
+}
+```
+
 ### Completing Multiple Tasks
 
 ```json
@@ -304,12 +321,13 @@ The HTTP streaming interface offers better performance and simplified deployment
 
 ### API Reference
 
-The server implements 14 Todoist tools organized into four categories:
+The server implements 15 Todoist tools organized into four categories:
 
 #### Task Tools
 - `todoist_create_task`
 - `todoist_get_tasks`
 - `todoist_update_task`
+- `todoist_move_task`
 - `todoist_delete_task`
 - `todoist_complete_task`
 
