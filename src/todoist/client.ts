@@ -4,6 +4,7 @@ import {
   type AddTaskArgs,
   type GetTasksArgs,
   type Label,
+  type MoveTaskArgs,
   type PersonalProject,
   type Section,
   type Task,
@@ -28,6 +29,7 @@ import {
   BatchCreateTaskParamsSchema,
   BatchDeleteTaskParamsSchema,
   BatchGetProjectSectionsParamsSchema,
+  BatchMoveTaskParamsSchema,
   BatchRemoveSharedLabelParamsSchema,
   BatchRenameSharedLabelParamsSchema,
   BatchUpdatePersonalLabelParamsSchema,
@@ -46,6 +48,7 @@ import {
   GetProjectsParamsSchema,
   GetSharedLabelsParamsSchema,
   GetTasksParamsSchema,
+  MoveTaskParamsSchema,
   RemoveSharedLabelParamsSchema,
   RenameSharedLabelParamsSchema,
   UpdatePersonalLabelParamsSchema,
@@ -279,6 +282,15 @@ export class TodoistClient {
   async completeTask(taskId: string): Promise<boolean> {
     return this.handleRequest(async () => {
       return await this.api.closeTask(taskId);
+    });
+  }
+
+  /**
+   * Move tasks to a different project, section, or parent
+   */
+  async moveTasks(taskIds: string[], moveArgs: MoveTaskArgs): Promise<Task[]> {
+    return this.handleRequest(async () => {
+      return await this.api.moveTasks(taskIds, moveArgs);
     });
   }
 
@@ -985,6 +997,186 @@ export class TodoistClient {
                 type: "text",
                 text: JSON.stringify(
                   { success: true, task_id: taskId },
+                  null,
+                  2
+                ),
+              },
+            ],
+          };
+        } catch (error) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify(
+                  {
+                    success: false,
+                    error:
+                      error instanceof Error ? error.message : String(error),
+                  },
+                  null,
+                  2
+                ),
+              },
+            ],
+          };
+        }
+      }
+    );
+
+    // Tool: Move task(s)
+    server.tool(
+      "todoist_move_task",
+      "Move one or more tasks to a different project, section, or parent task. Use this instead of update when changing task location. Exactly one destination (project_id, section_id, or parent_id) must be specified.",
+      {
+        tasks: z
+          .array(MoveTaskParamsSchema)
+          .optional()
+          .describe("Array of tasks to move (for batch operations)"),
+        task_id: z.string().optional().describe("Task ID to move"),
+        task_name: z
+          .string()
+          .optional()
+          .describe("Task name to search for (if ID not provided)"),
+        project_id: z
+          .string()
+          .optional()
+          .describe("Destination project ID (move to project)"),
+        section_id: z
+          .string()
+          .optional()
+          .describe("Destination section ID (move to section)"),
+        parent_id: z
+          .string()
+          .optional()
+          .describe("Parent task ID (make this a subtask)"),
+      },
+      async (params) => {
+        try {
+          // Batch operation
+          if (params.tasks && params.tasks.length > 0) {
+            const response = await this.api.getTasks();
+            const allTasks = response.results;
+
+            const results = await Promise.all(
+              params.tasks.map(async (taskData) => {
+                try {
+                  let taskId = taskData.task_id;
+
+                  if (!taskId && taskData.task_name) {
+                    const matchingTask = allTasks.find((task) =>
+                      task.content
+                        .toLowerCase()
+                        .includes(taskData.task_name?.toLowerCase() || "")
+                    );
+
+                    if (!matchingTask) {
+                      return {
+                        success: false,
+                        error: `Task not found: ${taskData.task_name}`,
+                        taskData,
+                      };
+                    }
+
+                    taskId = matchingTask.id;
+                  }
+
+                  if (!taskId) {
+                    return {
+                      success: false,
+                      error: "Either task_id or task_name must be provided",
+                      taskData,
+                    };
+                  }
+
+                  // Build move args with exactly one destination
+                  const moveArgs: MoveTaskArgs = {};
+                  if (taskData.project_id)
+                    moveArgs.projectId = taskData.project_id;
+                  if (taskData.section_id)
+                    moveArgs.sectionId = taskData.section_id;
+                  if (taskData.parent_id)
+                    moveArgs.parentId = taskData.parent_id;
+
+                  const movedTasks = await this.moveTasks([taskId], moveArgs);
+                  return { success: true, task: movedTasks[0] };
+                } catch (error) {
+                  return {
+                    success: false,
+                    error:
+                      error instanceof Error ? error.message : String(error),
+                    taskData,
+                  };
+                }
+              })
+            );
+
+            const successCount = results.filter((r) => r.success).length;
+
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: JSON.stringify(
+                    {
+                      success: successCount === params.tasks.length,
+                      summary: {
+                        total: params.tasks.length,
+                        succeeded: successCount,
+                        failed: params.tasks.length - successCount,
+                      },
+                      results,
+                    },
+                    null,
+                    2
+                  ),
+                },
+              ],
+            };
+          }
+
+          // Single task operation
+          let taskId = params.task_id;
+
+          if (!taskId && params.task_name) {
+            const task = await this.findTaskByName(params.task_name);
+            if (!task) {
+              throw new Error(`Task not found: ${params.task_name}`);
+            }
+            taskId = task.id;
+          }
+
+          if (!taskId) {
+            throw new Error("Either task_id or task_name must be provided");
+          }
+
+          // Validate exactly one destination
+          const destinations = [
+            params.project_id,
+            params.section_id,
+            params.parent_id,
+          ].filter(Boolean);
+
+          if (destinations.length !== 1) {
+            throw new Error(
+              "Exactly one of project_id, section_id, or parent_id must be specified"
+            );
+          }
+
+          // Build move args
+          const moveArgs: MoveTaskArgs = {};
+          if (params.project_id) moveArgs.projectId = params.project_id;
+          if (params.section_id) moveArgs.sectionId = params.section_id;
+          if (params.parent_id) moveArgs.parentId = params.parent_id;
+
+          const movedTasks = await this.moveTasks([taskId], moveArgs);
+
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify(
+                  { success: true, task: movedTasks[0] },
                   null,
                   2
                 ),

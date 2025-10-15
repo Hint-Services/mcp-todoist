@@ -178,6 +178,43 @@ export const BatchCompleteTaskParamsSchema = BatchDeleteTaskParamsSchema;
 export type BatchCompleteTaskParams = BatchDeleteTaskParams;
 
 /**
+ * Task move parameters (single task)
+ */
+export const MoveTaskParamsSchema = z
+  .object({
+    task_id: z.string().optional(),
+    task_name: z.string().optional(),
+    project_id: z.string().optional(),
+    section_id: z.string().optional(),
+    parent_id: z.string().optional(),
+  })
+  .refine(
+    (data) => {
+      const destinations = [
+        data.project_id,
+        data.section_id,
+        data.parent_id,
+      ].filter(Boolean);
+      return destinations.length === 1;
+    },
+    {
+      message:
+        "Exactly one of project_id, section_id, or parent_id must be specified",
+    }
+  );
+
+export type MoveTaskParams = z.infer<typeof MoveTaskParamsSchema>;
+
+/**
+ * Batch task move parameters
+ */
+export const BatchMoveTaskParamsSchema = z.object({
+  tasks: z.array(MoveTaskParamsSchema),
+});
+
+export type BatchMoveTaskParams = z.infer<typeof BatchMoveTaskParamsSchema>;
+
+/**
  * Project creation parameters (single project)
  */
 export const CreateProjectParamsSchema = z.object({
