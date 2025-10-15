@@ -156,17 +156,29 @@ export class TodoistClient {
     params: z.infer<typeof GetTasksParamsSchema> = {}
   ): Promise<Task[]> {
     return this.handleRequest(async () => {
-      const apiParams: GetTasksArgs = {};
+      let tasks: Task[];
 
-      if (params.project_id) apiParams.projectId = params.project_id;
-      if (params.section_id) apiParams.sectionId = params.section_id;
-      if (params.label) apiParams.label = params.label;
-      if (params.ids) apiParams.ids = params.ids;
+      // Use getTasksByFilter for natural language filters (today, overdue, etc.)
+      if (params.filter) {
+        const response = await this.api.getTasksByFilter({
+          query: params.filter,
+          lang: params.lang,
+        });
+        tasks = response.results;
+      } else {
+        // Use standard getTasks for ID-based filtering
+        const apiParams: GetTasksArgs = {};
 
-      const response = await this.api.getTasks(apiParams);
-      let tasks = response.results;
+        if (params.project_id) apiParams.projectId = params.project_id;
+        if (params.section_id) apiParams.sectionId = params.section_id;
+        if (params.label) apiParams.label = params.label;
+        if (params.ids) apiParams.ids = params.ids;
 
-      // Apply client-side filtering
+        const response = await this.api.getTasks(apiParams);
+        tasks = response.results;
+      }
+
+      // Apply client-side filtering for priority
       if (params.priority) {
         tasks = tasks.filter((task) => task.priority === params.priority);
       }
