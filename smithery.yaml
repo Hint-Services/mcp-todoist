@@ -1,0 +1,10 @@
+# Smithery configuration file: https://smithery.ai/docs/config#smitheryyaml
+
+name: "@Hint-Services/mcp-todoist"
+description: "A Model Context Protocol server for Todoist task management"
+version: "0.1.0"
+
+runtime: "typescript"
+
+# Use stdio transport (HTTP has Smithery CLI v1.5.2 bug)
+transport: "stdio"

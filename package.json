@@ -1,0 +1,85 @@
+{
+  "name": "mcp-todoist",
+  "version": "0.1.0",
+  "description": "A Model Context Protocol server for Todoist task management",
+  "author": {
+    "name": "Ben Hofferber",
+    "url": "https://hint.services",
+    "social": {
+      "bluesky": "https://bsky.app/profile/benhofferber.com"
+    }
+  },
+  "private": false,
+  "type": "module",
+  "module": "src/index.ts",
+  "bin": {
+    "mcp-todoist": "build/index.js"
+  },
+  "files": [
+    "build",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "prebuild": "npm run lint && npm run format",
+    "prepublishOnly": "npm run build:stdio",
+    "build": "npm run build:http",
+    "build:stdio": "tsc && node -e \"require('fs').chmodSync('build/index.js', '755')\"",
+    "build:http": "npx @smithery/cli build",
+    "dev": "npx @smithery/cli dev",
+    "dev:stdio": "concurrently \"npm run watch\" \"npm run inspector\"",
+    "start": "npm run start:http",
+    "start:http": "node .smithery/index.cjs",
+    "start:stdio": "node build/index.js",
+    "watch": "tsc --watch",
+    "inspector": "npx @modelcontextprotocol/inspector node build/index.js",
+    "debug": "node --inspect build/index.js",
+    "debug:watch": "concurrently \"npm run watch\" \"npm run debug\"",
+    "logs": "tail -n 20 -F ~/Library/Logs/Claude/mcp*.log",
+    "clean": "rm -rf build",
+    "test": "vitest",
+    "lint": "biome check ./src",
+    "lint:fix": "biome check --apply ./src",
+    "format": "biome format ./src",
+    "format:fix": "biome format --write ./src"
+  },
+  "dependencies": {
+    "@doist/todoist-api-typescript": "^5.6.4",
+    "@modelcontextprotocol/sdk": "1.17.4",
+    "@smithery/sdk": "1.5.6",
+    "chalk": "^5.6.2",
+    "cors": "^2.8.5",
+    "express": "^5.1.0",
+    "tsx": "^4.20.5",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "1.9.4",
+    "@types/node": "^20.11.24",
+    "concurrently": "^8.2.2",
+    "typescript": "^5.3.3",
+    "vitest": "^3.2.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hint-services/mcp-todoist.git"
+  },
+  "bugs": {
+    "url": "https://github.com/hint-services/mcp-todoist/issues"
+  },
+  "homepage": "https://github.com/hint-services/mcp-todoist#readme",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "todoist",
+    "task-management",
+    "productivity",
+    "ai",
+    "assistant",
+    "claude",
+    "typescript"
+  ]
+}
