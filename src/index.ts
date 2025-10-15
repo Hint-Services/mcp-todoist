@@ -103,8 +103,11 @@ async function main() {
   }
 }
 
-// Only run main if this file is executed directly
-main().catch((error) => {
-  console.error("Fatal error in main():", error);
-  process.exit(1);
-});
+// Only run main if this file is executed directly (not imported as a module)
+// This allows HTTP servers to import createServer without requiring env vars
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main().catch((error) => {
+    console.error("Fatal error in main():", error);
+    process.exit(1);
+  });
+}
