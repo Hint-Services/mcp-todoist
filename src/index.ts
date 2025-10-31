@@ -26,10 +26,10 @@ import { TodoistConfigSchema } from "./todoist/types.js";
 export const configSchema = TodoistConfigSchema;
 
 export default function createServer({
-  config,
+  config = {},
 }: {
-  config: z.infer<typeof configSchema>;
-}) {
+  config?: z.infer<typeof configSchema>;
+} = {}) {
   const server = new McpServer({
     name: "mcp-todoist",
     version: "0.1.0",
@@ -70,21 +70,8 @@ function logMessage(level: "info" | "warn" | "error", message: string) {
 
 // Keep main function for stdio compatibility
 async function main() {
-  // Environment variable validation moved inside main()
-  const todoistApiToken = process.env.TODOIST_API_TOKEN;
-
-  if (!todoistApiToken) {
-    console.error(
-      "Environment variable TODOIST_API_TOKEN is required. Get your API token from https://todoist.com/app/settings/integrations/developer"
-    );
-    process.exit(1);
-  }
-
-  const server = createServer({
-    config: {
-      apiToken: todoistApiToken,
-    },
-  });
+  // Config will automatically use TODOIST_API_TOKEN from environment
+  const server = createServer();
 
   try {
     // Set up communication with the MCP host using stdio transport

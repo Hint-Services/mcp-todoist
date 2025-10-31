@@ -47,7 +47,7 @@ import {
   GetProjectSectionsParamsSchema,
   GetProjectsParamsSchema,
   GetSharedLabelsParamsSchema,
-  GetTasksParamsSchema,
+  type GetTasksParamsSchema,
   MoveTaskParamsSchema,
   RemoveSharedLabelParamsSchema,
   RenameSharedLabelParamsSchema,
@@ -61,7 +61,17 @@ export class TodoistClient {
   private api: TodoistApi;
 
   constructor(private config: TodoistConfig) {
-    this.api = new TodoistApi(config.apiToken);
+    // Use provided token or fall back to environment variable
+    const apiToken = config.apiToken || process.env.TODOIST_API_TOKEN;
+
+    if (!apiToken) {
+      throw new Error(
+        "Todoist API token is required. Provide it via config or set TODOIST_API_TOKEN environment variable. " +
+          "Get your API token from https://todoist.com/app/settings/integrations/developer"
+      );
+    }
+
+    this.api = new TodoistApi(apiToken);
   }
 
   /**
@@ -436,6 +446,279 @@ export class TodoistClient {
     this.registerTaskTools(server);
     this.registerProjectTools(server);
     this.registerLabelTools(server);
+    this.registerPrompts(server);
+    this.registerResources(server);
+    this.addToolAnnotations(server);
+  }
+
+  /**
+   * Register resources to expose Todoist data
+   */
+  private registerResources(server: McpServer) {
+    // Resource: Today's tasks
+    server.resource(
+      "todoist://tasks/today",
+      "Today's tasks",
+      "All tasks due today",
+      "application/json",
+      async () => {
+        const tasks = await this.getTasks({ filter: "today" });
+        return JSON.stringify(tasks, null, 2);
+      }
+    );
+
+    // Resource: Overdue tasks
+    server.resource(
+      "todoist://tasks/overdue",
+      "Overdue tasks",
+      "All overdue tasks",
+      "application/json",
+      async () => {
+        const tasks = await this.getTasks({ filter: "overdue" });
+        return JSON.stringify(tasks, null, 2);
+      }
+    );
+
+    // Resource: All projects
+    server.resource(
+      "todoist://projects",
+      "All projects",
+      "Complete list of all Todoist projects",
+      "application/json",
+      async () => {
+        const projects = await this.getProjects();
+        return JSON.stringify(projects, null, 2);
+      }
+    );
+
+    // Resource: All labels
+    server.resource(
+      "todoist://labels",
+      "All labels",
+      "Complete list of all personal labels",
+      "application/json",
+      async () => {
+        const labels = await this.getPersonalLabels();
+        return JSON.stringify(labels, null, 2);
+      }
+    );
+
+    // Resource: This week's tasks
+    server.resource(
+      "todoist://tasks/week",
+      "This week's tasks",
+      "All tasks due this week",
+      "application/json",
+      async () => {
+        const tasks = await this.getTasks({ filter: "this week" });
+        return JSON.stringify(tasks, null, 2);
+      }
+    );
+
+    // Resource: High priority tasks
+    server.resource(
+      "todoist://tasks/priority/high",
+      "High priority tasks",
+      "All tasks with priority 3 (high) or 4 (urgent)",
+      "application/json",
+      async () => {
+        const allTasks = await this.getTasks({});
+        const highPriorityTasks = allTasks.filter((task) => task.priority >= 3);
+        return JSON.stringify(highPriorityTasks, null, 2);
+      }
+    );
+  }
+
+  /**
+   * Register helpful prompts for common Todoist workflows
+   */
+  private registerPrompts(server: McpServer) {
+    // Prompt: Daily review
+    server.prompt(
+      "daily-review",
+      "Review today's tasks and plan your day",
+      async () => ({
+        messages: [
+          {
+            role: "user",
+            content: {
+              type: "text",
+              text: "Show me all my tasks due today and help me prioritize them. Include any overdue tasks I should address first.",
+            },
+          },
+        ],
+      })
+    );
+
+    // Prompt: Quick task capture
+    server.prompt(
+      "quick-add",
+      "Quickly add a new task with natural language",
+      async () => ({
+        messages: [
+          {
+            role: "user",
+            content: {
+              type: "text",
+              text: "I want to add a new task. Help me create it with the right details like due date, priority, and project.",
+            },
+          },
+        ],
+      })
+    );
+
+    // Prompt: Project overview
+    server.prompt(
+      "project-overview",
+      "Get an overview of all projects and their tasks",
+      async () => ({
+        messages: [
+          {
+            role: "user",
+            content: {
+              type: "text",
+              text: "Show me all my projects with their sections and task counts. Help me understand what needs attention.",
+            },
+          },
+        ],
+      })
+    );
+
+    // Prompt: Weekly planning
+    server.prompt("weekly-plan", "Plan your week ahead", async () => ({
+      messages: [
+        {
+          role: "user",
+          content: {
+            type: "text",
+            text: "Show me all tasks due this week organized by project and help me create a realistic weekly plan.",
+          },
+        },
+      ],
+    }));
+
+    // Prompt: Task cleanup
+    server.prompt(
+      "cleanup-tasks",
+      "Review and clean up old or stuck tasks",
+      async () => ({
+        messages: [
+          {
+            role: "user",
+            content: {
+              type: "text",
+              text: "Show me overdue tasks and tasks without due dates. Help me decide what to complete, reschedule, or delete.",
+            },
+          },
+        ],
+      })
+    );
+  }
+
+  /**
+   * Add annotations to all registered tools
+   */
+  private addToolAnnotations(server: McpServer) {
+    // Define annotations for each tool
+    const toolAnnotations = {
+      // Task tools
+      todoist_create_task: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+      },
+      todoist_get_tasks: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+      },
+      todoist_update_task: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+      },
+      todoist_delete_task: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: true,
+      },
+      todoist_complete_task: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+      },
+      todoist_move_task: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+      },
+      // Project tools
+      todoist_get_projects: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+      },
+      todoist_create_project: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+      },
+      todoist_update_project: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+      },
+      todoist_get_project_sections: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+      },
+      todoist_create_project_section: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+      },
+      // Label tools
+      todoist_get_personal_labels: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+      },
+      todoist_get_personal_label: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+      },
+      todoist_create_personal_label: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+      },
+      todoist_update_personal_label: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+      },
+      todoist_delete_personal_label: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: true,
+      },
+    };
+
+    // Override the tools/list handler to include annotations
+    server.setRequestHandler("tools/list", async () => {
+      // biome-ignore lint/suspicious/noExplicitAny: Accessing internal MCP server tools storage
+      const tools = Array.from((server as any)._tools?.values() || []);
+      return {
+        // biome-ignore lint/suspicious/noExplicitAny: Tool objects have dynamic structure from MCP SDK
+        tools: tools.map((tool: any) => ({
+          ...tool,
+          annotations:
+            toolAnnotations[tool.name as keyof typeof toolAnnotations] || {},
+        })),
+      };
+    });
   }
 
   /**
@@ -562,7 +845,44 @@ export class TodoistClient {
     server.tool(
       "todoist_get_tasks",
       "Retrieve tasks from Todoist with flexible filtering options. Filter by project, section, label, priority, or use natural language filters like 'today', 'tomorrow', 'overdue'.",
-      GetTasksParamsSchema.partial().shape,
+      {
+        project_id: z
+          .string()
+          .optional()
+          .describe("Filter tasks by project ID"),
+        section_id: z
+          .string()
+          .optional()
+          .describe("Filter tasks by section ID"),
+        label: z.string().optional().describe("Filter tasks by label name"),
+        filter: z
+          .string()
+          .optional()
+          .describe(
+            "Natural language filter like 'today', 'tomorrow', 'next week', 'overdue', etc."
+          ),
+        lang: z
+          .string()
+          .optional()
+          .describe("Language for date parsing (e.g., 'en', 'de', 'fr')"),
+        ids: z
+          .array(z.string())
+          .optional()
+          .describe("Filter by specific task IDs"),
+        priority: z
+          .number()
+          .min(1)
+          .max(4)
+          .optional()
+          .describe(
+            "Filter by priority level (1=normal, 2=medium, 3=high, 4=urgent)"
+          ),
+        limit: z
+          .number()
+          .min(1)
+          .optional()
+          .describe("Maximum number of tasks to return (default: 10)"),
+      },
       async (params) => {
         try {
           const tasks = await this.getTasks(params);
@@ -1094,7 +1414,9 @@ export class TodoistClient {
                     ? { projectId: taskData.project_id }
                     : taskData.section_id
                       ? { sectionId: taskData.section_id }
-                      : { parentId: taskData.parent_id! };
+                      : taskData.parent_id
+                        ? { parentId: taskData.parent_id }
+                        : { projectId: "" }; // This should never happen due to schema validation
 
                   const movedTasks = await this.moveTasks([taskId], moveArgs);
                   return { success: true, task: movedTasks[0] };
@@ -1166,7 +1488,9 @@ export class TodoistClient {
             ? { projectId: params.project_id }
             : params.section_id
               ? { sectionId: params.section_id }
-              : { parentId: params.parent_id! };
+              : params.parent_id
+                ? { parentId: params.parent_id }
+                : { projectId: "" }; // This should never happen due to validation
 
           const movedTasks = await this.moveTasks([taskId], moveArgs);
 
@@ -1212,7 +1536,24 @@ export class TodoistClient {
     server.tool(
       "todoist_get_projects",
       "Retrieve all projects from Todoist. Optionally include sections and hierarchy information to understand parent-child project relationships.",
-      GetProjectsParamsSchema.partial().shape,
+      {
+        project_ids: z
+          .array(z.string())
+          .optional()
+          .describe(
+            "Filter by specific project IDs (returns all if not specified)"
+          ),
+        include_sections: z
+          .boolean()
+          .optional()
+          .describe("Include sections for each project (default: false)"),
+        include_hierarchy: z
+          .boolean()
+          .optional()
+          .describe(
+            "Include parent-child project relationships (default: false)"
+          ),
+      },
       async (params) => {
         try {
           let projects = await this.getProjects();
@@ -1910,7 +2251,12 @@ export class TodoistClient {
     server.tool(
       "todoist_get_personal_label",
       "Retrieve a specific personal label by its ID from Todoist.",
-      GetPersonalLabelParamsSchema.shape,
+      {
+        label_id: z
+          .string()
+          .min(1)
+          .describe("The unique ID of the label to retrieve"),
+      },
       async (params) => {
         try {
           const label = await this.getPersonalLabel(params.label_id);
@@ -2204,7 +2550,14 @@ export class TodoistClient {
     server.tool(
       "todoist_delete_personal_label",
       "Delete a personal label from Todoist. This will remove the label from all tasks that use it.",
-      DeletePersonalLabelParamsSchema.shape,
+      {
+        label_id: z
+          .string()
+          .min(1)
+          .describe(
+            "The unique ID of the label to delete (WARNING: This will remove the label from all tasks)"
+          ),
+      },
       async (params) => {
         try {
           await this.deletePersonalLabel(params.label_id);

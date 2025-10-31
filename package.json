@@ -2,6 +2,7 @@
   "name": "@hoffination/mcp-todoist",
   "version": "0.1.0",
   "description": "A Model Context Protocol server for Todoist task management",
+  "license": "MIT",
   "author": {
     "name": "Ben Hofferber",
     "url": "https://hint.services",
