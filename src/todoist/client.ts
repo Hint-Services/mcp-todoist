@@ -47,7 +47,7 @@ import {
   GetProjectSectionsParamsSchema,
   GetProjectsParamsSchema,
   GetSharedLabelsParamsSchema,
-  GetTasksParamsSchema,
+  type GetTasksParamsSchema,
   MoveTaskParamsSchema,
   RemoveSharedLabelParamsSchema,
   RenameSharedLabelParamsSchema,
@@ -61,7 +61,17 @@ export class TodoistClient {
   private api: TodoistApi;
 
   constructor(private config: TodoistConfig) {
-    this.api = new TodoistApi(config.apiToken);
+    // Use provided token or fall back to environment variable
+    const apiToken = config.apiToken || process.env.TODOIST_API_TOKEN;
+
+    if (!apiToken) {
+      throw new Error(
+        "Todoist API token is required. Provide it via config or set TODOIST_API_TOKEN environment variable. " +
+          "Get your API token from https://todoist.com/app/settings/integrations/developer"
+      );
+    }
+
+    this.api = new TodoistApi(apiToken);
   }
 
   /**
@@ -436,6 +446,238 @@ export class TodoistClient {
     this.registerTaskTools(server);
     this.registerProjectTools(server);
     this.registerLabelTools(server);
+    this.registerPrompts(server);
+    this.registerResources(server);
+  }
+
+  /**
+   * Register resources to expose Todoist data
+   */
+  private registerResources(server: McpServer) {
+    // Resource: Today's tasks
+    server.resource(
+      "todoist://tasks/today",
+      "todoist://tasks/today",
+      {
+        title: "Today's tasks",
+        description: "All tasks due today",
+        mimeType: "application/json",
+      },
+      async (uri) => {
+        const tasks = await this.getTasks({ filter: "today" });
+        return {
+          contents: [
+            {
+              uri: uri.toString(),
+              text: JSON.stringify(tasks, null, 2),
+              mimeType: "application/json",
+            },
+          ],
+        };
+      }
+    );
+
+    // Resource: Overdue tasks
+    server.resource(
+      "todoist://tasks/overdue",
+      "todoist://tasks/overdue",
+      {
+        title: "Overdue tasks",
+        description: "All overdue tasks",
+        mimeType: "application/json",
+      },
+      async (uri) => {
+        const tasks = await this.getTasks({ filter: "overdue" });
+        return {
+          contents: [
+            {
+              uri: uri.toString(),
+              text: JSON.stringify(tasks, null, 2),
+              mimeType: "application/json",
+            },
+          ],
+        };
+      }
+    );
+
+    // Resource: All projects
+    server.resource(
+      "todoist://projects",
+      "todoist://projects",
+      {
+        title: "All projects",
+        description: "Complete list of all Todoist projects",
+        mimeType: "application/json",
+      },
+      async (uri) => {
+        const projects = await this.getProjects();
+        return {
+          contents: [
+            {
+              uri: uri.toString(),
+              text: JSON.stringify(projects, null, 2),
+              mimeType: "application/json",
+            },
+          ],
+        };
+      }
+    );
+
+    // Resource: All labels
+    server.resource(
+      "todoist://labels",
+      "todoist://labels",
+      {
+        title: "All labels",
+        description: "Complete list of all personal labels",
+        mimeType: "application/json",
+      },
+      async (uri) => {
+        const labels = await this.getPersonalLabels();
+        return {
+          contents: [
+            {
+              uri: uri.toString(),
+              text: JSON.stringify(labels, null, 2),
+              mimeType: "application/json",
+            },
+          ],
+        };
+      }
+    );
+
+    // Resource: This week's tasks
+    server.resource(
+      "todoist://tasks/week",
+      "todoist://tasks/week",
+      {
+        title: "This week's tasks",
+        description: "All tasks due this week",
+        mimeType: "application/json",
+      },
+      async (uri) => {
+        const tasks = await this.getTasks({ filter: "this week" });
+        return {
+          contents: [
+            {
+              uri: uri.toString(),
+              text: JSON.stringify(tasks, null, 2),
+              mimeType: "application/json",
+            },
+          ],
+        };
+      }
+    );
+
+    // Resource: High priority tasks
+    server.resource(
+      "todoist://tasks/priority/high",
+      "todoist://tasks/priority/high",
+      {
+        title: "High priority tasks",
+        description: "All tasks with priority 3 (high) or 4 (urgent)",
+        mimeType: "application/json",
+      },
+      async (uri) => {
+        const allTasks = await this.getTasks({});
+        const highPriorityTasks = allTasks.filter((task) => task.priority >= 3);
+        return {
+          contents: [
+            {
+              uri: uri.toString(),
+              text: JSON.stringify(highPriorityTasks, null, 2),
+              mimeType: "application/json",
+            },
+          ],
+        };
+      }
+    );
+  }
+
+  /**
+   * Register helpful prompts for common Todoist workflows
+   */
+  private registerPrompts(server: McpServer) {
+    // Prompt: Daily review
+    server.prompt(
+      "daily-review",
+      "Review today's tasks and plan your day",
+      async () => ({
+        messages: [
+          {
+            role: "user",
+            content: {
+              type: "text",
+              text: "Show me all my tasks due today and help me prioritize them. Include any overdue tasks I should address first.",
+            },
+          },
+        ],
+      })
+    );
+
+    // Prompt: Quick task capture
+    server.prompt(
+      "quick-add",
+      "Quickly add a new task with natural language",
+      async () => ({
+        messages: [
+          {
+            role: "user",
+            content: {
+              type: "text",
+              text: "I want to add a new task. Help me create it with the right details like due date, priority, and project.",
+            },
+          },
+        ],
+      })
+    );
+
+    // Prompt: Project overview
+    server.prompt(
+      "project-overview",
+      "Get an overview of all projects and their tasks",
+      async () => ({
+        messages: [
+          {
+            role: "user",
+            content: {
+              type: "text",
+              text: "Show me all my projects with their sections and task counts. Help me understand what needs attention.",
+            },
+          },
+        ],
+      })
+    );
+
+    // Prompt: Weekly planning
+    server.prompt("weekly-plan", "Plan your week ahead", async () => ({
+      messages: [
+        {
+          role: "user",
+          content: {
+            type: "text",
+            text: "Show me all tasks due this week organized by project and help me create a realistic weekly plan.",
+          },
+        },
+      ],
+    }));
+
+    // Prompt: Task cleanup
+    server.prompt(
+      "cleanup-tasks",
+      "Review and clean up old or stuck tasks",
+      async () => ({
+        messages: [
+          {
+            role: "user",
+            content: {
+              type: "text",
+              text: "Show me overdue tasks and tasks without due dates. Help me decide what to complete, reschedule, or delete.",
+            },
+          },
+        ],
+      })
+    );
   }
 
   /**
@@ -470,6 +712,7 @@ export class TodoistClient {
           .optional()
           .describe("Natural language due date (e.g., 'tomorrow')"),
       },
+      { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
       async (params) => {
         try {
           // Batch operation
@@ -562,7 +805,45 @@ export class TodoistClient {
     server.tool(
       "todoist_get_tasks",
       "Retrieve tasks from Todoist with flexible filtering options. Filter by project, section, label, priority, or use natural language filters like 'today', 'tomorrow', 'overdue'.",
-      GetTasksParamsSchema.partial().shape,
+      {
+        project_id: z
+          .string()
+          .optional()
+          .describe("Filter tasks by project ID"),
+        section_id: z
+          .string()
+          .optional()
+          .describe("Filter tasks by section ID"),
+        label: z.string().optional().describe("Filter tasks by label name"),
+        filter: z
+          .string()
+          .optional()
+          .describe(
+            "Natural language filter like 'today', 'tomorrow', 'next week', 'overdue', etc."
+          ),
+        lang: z
+          .string()
+          .optional()
+          .describe("Language for date parsing (e.g., 'en', 'de', 'fr')"),
+        ids: z
+          .array(z.string())
+          .optional()
+          .describe("Filter by specific task IDs"),
+        priority: z
+          .number()
+          .min(1)
+          .max(4)
+          .optional()
+          .describe(
+            "Filter by priority level (1=normal, 2=medium, 3=high, 4=urgent)"
+          ),
+        limit: z
+          .number()
+          .min(1)
+          .optional()
+          .describe("Maximum number of tasks to return (default: 10)"),
+      },
+      { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
       async (params) => {
         try {
           const tasks = await this.getTasks(params);
@@ -623,6 +904,7 @@ export class TodoistClient {
         labels: z.array(z.string()).optional().describe("New labels"),
         priority: z.number().min(1).max(4).optional().describe("New priority"),
       },
+      { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
       async (params) => {
         try {
           // Batch operation
@@ -759,6 +1041,7 @@ export class TodoistClient {
           .optional()
           .describe("Task name to search for (if ID not provided)"),
       },
+      { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
       async (params) => {
         try {
           // Batch operation
@@ -899,6 +1182,7 @@ export class TodoistClient {
           .optional()
           .describe("Task name to search for (if ID not provided)"),
       },
+      { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
       async (params) => {
         try {
           // Batch operation
@@ -1051,6 +1335,7 @@ export class TodoistClient {
           .optional()
           .describe("Parent task ID (make this a subtask)"),
       },
+      { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
       async (params) => {
         try {
           // Batch operation
@@ -1094,7 +1379,9 @@ export class TodoistClient {
                     ? { projectId: taskData.project_id }
                     : taskData.section_id
                       ? { sectionId: taskData.section_id }
-                      : { parentId: taskData.parent_id! };
+                      : taskData.parent_id
+                        ? { parentId: taskData.parent_id }
+                        : { projectId: "" }; // This should never happen due to schema validation
 
                   const movedTasks = await this.moveTasks([taskId], moveArgs);
                   return { success: true, task: movedTasks[0] };
@@ -1166,7 +1453,9 @@ export class TodoistClient {
             ? { projectId: params.project_id }
             : params.section_id
               ? { sectionId: params.section_id }
-              : { parentId: params.parent_id! };
+              : params.parent_id
+                ? { parentId: params.parent_id }
+                : { projectId: "" }; // This should never happen due to validation
 
           const movedTasks = await this.moveTasks([taskId], moveArgs);
 
@@ -1212,7 +1501,25 @@ export class TodoistClient {
     server.tool(
       "todoist_get_projects",
       "Retrieve all projects from Todoist. Optionally include sections and hierarchy information to understand parent-child project relationships.",
-      GetProjectsParamsSchema.partial().shape,
+      {
+        project_ids: z
+          .array(z.string())
+          .optional()
+          .describe(
+            "Filter by specific project IDs (returns all if not specified)"
+          ),
+        include_sections: z
+          .boolean()
+          .optional()
+          .describe("Include sections for each project (default: false)"),
+        include_hierarchy: z
+          .boolean()
+          .optional()
+          .describe(
+            "Include parent-child project relationships (default: false)"
+          ),
+      },
+      { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
       async (params) => {
         try {
           let projects = await this.getProjects();
@@ -1291,6 +1598,7 @@ export class TodoistClient {
         color: z.string().optional().describe("Project color"),
         favorite: z.boolean().optional().describe("Mark as favorite"),
       },
+      { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
       async (params) => {
         try {
           // Batch operation
@@ -1422,6 +1730,7 @@ export class TodoistClient {
           .optional()
           .describe("Project view style"),
       },
+      { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
       async (params) => {
         try {
           // Batch operation
@@ -1579,6 +1888,7 @@ export class TodoistClient {
           .optional()
           .describe("Project name (if ID not provided)"),
       },
+      { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
       async (params) => {
         try {
           // Batch operation
@@ -1726,6 +2036,7 @@ export class TodoistClient {
         name: z.string().optional().describe("Section name"),
         order: z.number().optional().describe("Section order"),
       },
+      { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
       async (params) => {
         try {
           // Batch operation
@@ -1865,6 +2176,7 @@ export class TodoistClient {
       "todoist_get_personal_labels",
       "Retrieve all personal labels from Todoist. Labels help categorize and organize tasks across projects.",
       {},
+      { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
       async () => {
         try {
           const labels = await this.getPersonalLabels();
@@ -1910,7 +2222,13 @@ export class TodoistClient {
     server.tool(
       "todoist_get_personal_label",
       "Retrieve a specific personal label by its ID from Todoist.",
-      GetPersonalLabelParamsSchema.shape,
+      {
+        label_id: z
+          .string()
+          .min(1)
+          .describe("The unique ID of the label to retrieve"),
+      },
+      { readOnlyHint: true, destructiveHint: false, idempotentHint: true },
       async (params) => {
         try {
           const label = await this.getPersonalLabel(params.label_id);
@@ -1957,6 +2275,7 @@ export class TodoistClient {
         color: z.string().optional().describe("Label color"),
         is_favorite: z.boolean().optional().describe("Mark as favorite"),
       },
+      { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
       async (params) => {
         try {
           // Batch operation
@@ -2066,6 +2385,7 @@ export class TodoistClient {
         order: z.number().optional().describe("Label order"),
         is_favorite: z.boolean().optional().describe("New favorite status"),
       },
+      { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
       async (params) => {
         try {
           // Batch operation
@@ -2204,7 +2524,15 @@ export class TodoistClient {
     server.tool(
       "todoist_delete_personal_label",
       "Delete a personal label from Todoist. This will remove the label from all tasks that use it.",
-      DeletePersonalLabelParamsSchema.shape,
+      {
+        label_id: z
+          .string()
+          .min(1)
+          .describe(
+            "The unique ID of the label to delete (WARNING: This will remove the label from all tasks)"
+          ),
+      },
+      { readOnlyHint: false, destructiveHint: true, idempotentHint: true },
       async (params) => {
         try {
           await this.deletePersonalLabel(params.label_id);

@@ -3,9 +3,16 @@ import { z } from "zod";
 /**
  * Configuration for the Todoist API client
  */
-export const TodoistConfigSchema = z.object({
-  apiToken: z.string().min(1, "Todoist API token is required"),
-});
+export const TodoistConfigSchema = z
+  .object({
+    apiToken: z
+      .string()
+      .optional()
+      .describe(
+        "Todoist API token. If not provided, will use TODOIST_API_TOKEN environment variable."
+      ),
+  })
+  .default({});
 
 export type TodoistConfig = z.infer<typeof TodoistConfigSchema>;
 
