@@ -19,6 +19,7 @@
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import type { z } from "zod";
 import { TodoistClient } from "./todoist/client.js";
 import { TodoistConfigSchema } from "./todoist/types.js";
@@ -92,7 +93,35 @@ async function main() {
 
 // Only run main if this file is executed directly (not imported as a module)
 // This allows HTTP servers to import createServer without requiring env vars
-if (import.meta.url === `file://${process.argv[1]}`) {
+// When run via npx or as a binary, process.argv[1] should match this file
+const isMainModule = (() => {
+  if (!process.argv[1]) return false;
+
+  try {
+    const currentFile = fileURLToPath(import.meta.url);
+    const execFile = process.argv[1];
+
+    // Normalize paths for comparison
+    const normalizePath = (p: string) => p.replace(/\\/g, "/");
+    const normalizedCurrent = normalizePath(currentFile);
+    const normalizedExec = normalizePath(execFile);
+
+    // Check exact match or if execFile contains the filename
+    return (
+      normalizedCurrent === normalizedExec ||
+      normalizedExec.endsWith("/index.js") ||
+      normalizedExec.includes("mcp-todoist")
+    );
+  } catch {
+    // Fallback: if execFile contains index.js or mcp-todoist, assume main module
+    return (
+      process.argv[1].includes("index.js") ||
+      process.argv[1].includes("mcp-todoist")
+    );
+  }
+})();
+
+if (isMainModule) {
   main().catch((error) => {
     console.error("Fatal error in main():", error);
     process.exit(1);
