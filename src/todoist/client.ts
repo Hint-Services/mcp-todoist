@@ -741,17 +741,52 @@ export class TodoistClient {
         description: z.string().optional().describe("Task description"),
         project_id: z.string().optional().describe("Project ID"),
         section_id: z.string().optional().describe("Section ID"),
+        parent_id: z
+          .string()
+          .optional()
+          .describe("Parent task ID (for subtasks)"),
+        order: z.number().optional().describe("Task order in list"),
         labels: z.array(z.string()).optional().describe("Label names"),
         priority: z
           .number()
           .min(1)
           .max(4)
           .optional()
-          .describe("Priority (1-4)"),
+          .describe("Priority (1-4, where 1=normal, 4=urgent)"),
         due_string: z
           .string()
           .optional()
-          .describe("Natural language due date (e.g., 'tomorrow')"),
+          .describe(
+            "Natural language due date (e.g., 'tomorrow', 'next Monday at 2pm')"
+          ),
+        due_date: z
+          .string()
+          .optional()
+          .describe(
+            "Specific due date in YYYY-MM-DD format (mutually exclusive with due_datetime)"
+          ),
+        due_datetime: z
+          .string()
+          .optional()
+          .describe(
+            "Specific due datetime in RFC3339 format (mutually exclusive with due_date)"
+          ),
+        due_lang: z
+          .string()
+          .optional()
+          .describe("Language for parsing due_string (e.g., 'en', 'de', 'fr')"),
+        assignee_id: z
+          .string()
+          .optional()
+          .describe("User ID to assign task to"),
+        duration: z
+          .number()
+          .optional()
+          .describe("Task duration amount (use with duration_unit)"),
+        duration_unit: z
+          .enum(["minute", "day"])
+          .optional()
+          .describe("Unit for duration: 'minute' or 'day'"),
       },
       { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
       async (params) => {
@@ -805,9 +840,17 @@ export class TodoistClient {
               description: params.description,
               project_id: params.project_id,
               section_id: params.section_id,
+              parent_id: params.parent_id,
+              order: params.order,
               labels: params.labels,
               priority: params.priority,
               due_string: params.due_string,
+              due_date: params.due_date,
+              due_datetime: params.due_datetime,
+              due_lang: params.due_lang,
+              assignee_id: params.assignee_id,
+              duration: params.duration,
+              duration_unit: params.duration_unit,
             });
 
             return {
@@ -942,8 +985,49 @@ export class TodoistClient {
           .describe("Task name to search for (if ID not provided)"),
         content: z.string().optional().describe("New task content"),
         description: z.string().optional().describe("New description"),
+        project_id: z.string().optional().describe("Move to project ID"),
+        section_id: z.string().optional().describe("Move to section ID"),
         labels: z.array(z.string()).optional().describe("New labels"),
-        priority: z.number().min(1).max(4).optional().describe("New priority"),
+        priority: z
+          .number()
+          .min(1)
+          .max(4)
+          .optional()
+          .describe("New priority (1-4, where 1=normal, 4=urgent)"),
+        due_string: z
+          .string()
+          .optional()
+          .describe(
+            "Natural language due date (e.g., 'tomorrow', 'next Monday at 2pm')"
+          ),
+        due_date: z
+          .string()
+          .optional()
+          .describe(
+            "Specific due date in YYYY-MM-DD format (mutually exclusive with due_datetime)"
+          ),
+        due_datetime: z
+          .string()
+          .optional()
+          .describe(
+            "Specific due datetime in RFC3339 format (mutually exclusive with due_date)"
+          ),
+        due_lang: z
+          .string()
+          .optional()
+          .describe("Language for parsing due_string (e.g., 'en', 'de', 'fr')"),
+        assignee_id: z
+          .string()
+          .optional()
+          .describe("User ID to assign task to"),
+        duration: z
+          .number()
+          .optional()
+          .describe("Task duration amount (use with duration_unit)"),
+        duration_unit: z
+          .enum(["minute", "day"])
+          .optional()
+          .describe("Unit for duration: 'minute' or 'day'"),
       },
       { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
       async (params) => {
