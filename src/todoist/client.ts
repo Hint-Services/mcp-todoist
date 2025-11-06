@@ -89,6 +89,18 @@ export class TodoistClient {
   }
 
   /**
+   * Helper: Remove undefined values from an object
+   * This prevents sending undefined values to the Todoist API which can cause 400 errors
+   */
+  private removeUndefined<T extends Record<string, unknown>>(
+    obj: T
+  ): Partial<T> {
+    return Object.fromEntries(
+      Object.entries(obj).filter(([_, value]) => value !== undefined)
+    ) as Partial<T>;
+  }
+
+  /**
    * Helper: Validate and normalize color values
    */
   private validateColor(color: string): string {
@@ -212,7 +224,8 @@ export class TodoistClient {
     params: z.infer<typeof CreateTaskParamsSchema>
   ): Promise<Task> {
     return this.handleRequest(async () => {
-      const apiParams = {
+      // Build params object, then filter out undefined values
+      const rawParams = {
         content: params.content,
         description: params.description,
         projectId: params.project_id,
@@ -237,7 +250,10 @@ export class TodoistClient {
               durationUnit: params.duration_unit,
             }
           : {}),
-      } as AddTaskArgs;
+      };
+
+      // Remove undefined values to prevent 400 errors from Todoist API
+      const apiParams = this.removeUndefined(rawParams) as AddTaskArgs;
 
       return await this.api.addTask(apiParams);
     });
@@ -251,7 +267,8 @@ export class TodoistClient {
     params: Partial<z.infer<typeof UpdateTaskParamsSchema>>
   ): Promise<Task> {
     return this.handleRequest(async () => {
-      const apiParams = {
+      // Build params object, then filter out undefined values
+      const rawParams = {
         content: params.content,
         description: params.description,
         labels: params.labels,
@@ -271,7 +288,10 @@ export class TodoistClient {
               durationUnit: params.duration_unit,
             }
           : {}),
-      } as UpdateTaskArgs;
+      };
+
+      // Remove undefined values to prevent 400 errors from Todoist API
+      const apiParams = this.removeUndefined(rawParams) as UpdateTaskArgs;
 
       return await this.api.updateTask(taskId, apiParams);
     });
@@ -321,13 +341,16 @@ export class TodoistClient {
     params: z.infer<typeof CreateProjectParamsSchema>
   ): Promise<Project> {
     return this.handleRequest(async () => {
-      const apiParams: AddProjectArgs = {
+      const rawParams = {
         name: params.name,
         parentId: params.parent_id,
         color: params.color,
         isFavorite: params.favorite,
         viewStyle: params.view_style,
       };
+
+      // Remove undefined values to prevent 400 errors from Todoist API
+      const apiParams = this.removeUndefined(rawParams) as AddProjectArgs;
 
       return await this.api.addProject(apiParams);
     });
@@ -341,12 +364,15 @@ export class TodoistClient {
     params: Partial<z.infer<typeof UpdateProjectParamsSchema>>
   ): Promise<Project> {
     return this.handleRequest(async () => {
-      const apiParams: UpdateProjectArgs = {
+      const rawParams = {
         name: params.name,
         color: params.color,
         isFavorite: params.favorite,
         viewStyle: params.view_style,
       };
+
+      // Remove undefined values to prevent 400 errors from Todoist API
+      const apiParams = this.removeUndefined(rawParams) as UpdateProjectArgs;
 
       return await this.api.updateProject(projectId, apiParams);
     });
@@ -370,11 +396,16 @@ export class TodoistClient {
     params: { name: string; order?: number }
   ): Promise<Section> {
     return this.handleRequest(async () => {
-      return await this.api.addSection({
+      const rawParams = {
         name: params.name,
         projectId: projectId,
         order: params.order,
-      });
+      };
+
+      // Remove undefined values to prevent 400 errors from Todoist API
+      const apiParams = this.removeUndefined(rawParams);
+
+      return await this.api.addSection(apiParams);
     });
   }
 
@@ -404,12 +435,17 @@ export class TodoistClient {
     params: z.infer<typeof CreatePersonalLabelParamsSchema>
   ): Promise<Label> {
     return this.handleRequest(async () => {
-      return await this.api.addLabel({
+      const rawParams = {
         name: params.name,
         color: params.color,
         order: params.order,
         isFavorite: params.is_favorite,
-      });
+      };
+
+      // Remove undefined values to prevent 400 errors from Todoist API
+      const apiParams = this.removeUndefined(rawParams) as AddLabelArgs;
+
+      return await this.api.addLabel(apiParams);
     });
   }
 
@@ -421,12 +457,17 @@ export class TodoistClient {
     params: Partial<z.infer<typeof UpdatePersonalLabelParamsSchema>>
   ): Promise<Label> {
     return this.handleRequest(async () => {
-      return await this.api.updateLabel(labelId, {
+      const rawParams = {
         name: params.name,
         color: params.color,
         order: params.order,
         isFavorite: params.is_favorite,
-      });
+      };
+
+      // Remove undefined values to prevent 400 errors from Todoist API
+      const apiParams = this.removeUndefined(rawParams) as UpdateLabelArgs;
+
+      return await this.api.updateLabel(labelId, apiParams);
     });
   }
 

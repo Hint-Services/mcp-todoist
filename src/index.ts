@@ -17,9 +17,9 @@
  * https://modelcontextprotocol.io
  */
 
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { fileURLToPath, pathToFileURL } from "node:url";
 import type { z } from "zod";
 import { TodoistClient } from "./todoist/client.js";
 import { TodoistConfigSchema } from "./todoist/types.js";
