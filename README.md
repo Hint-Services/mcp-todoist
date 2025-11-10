@@ -1,5 +1,6 @@
 [![smithery badge](https://smithery.ai/badge/@Hint-Services/mcp-todoist)](https://smithery.ai/server/@Hint-Services/mcp-todoist)
 [![npm version](https://img.shields.io/npm/v/@hoffination/mcp-todoist)](https://www.npmjs.com/package/@hoffination/mcp-todoist)
+[![npm downloads](https://img.shields.io/npm/dm/@hoffination/mcp-todoist)](https://www.npmjs.com/package/@hoffination/mcp-todoist)
 
 # Todoist MCP Server
 
