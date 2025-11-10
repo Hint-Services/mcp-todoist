@@ -89,6 +89,18 @@ export class TodoistClient {
   }
 
   /**
+   * Helper: Remove undefined values from an object
+   * This prevents sending undefined values to the Todoist API which can cause 400 errors
+   */
+  private removeUndefined<T extends Record<string, unknown>>(
+    obj: T
+  ): Partial<T> {
+    return Object.fromEntries(
+      Object.entries(obj).filter(([_, value]) => value !== undefined)
+    ) as Partial<T>;
+  }
+
+  /**
    * Helper: Validate and normalize color values
    */
   private validateColor(color: string): string {
@@ -212,7 +224,8 @@ export class TodoistClient {
     params: z.infer<typeof CreateTaskParamsSchema>
   ): Promise<Task> {
     return this.handleRequest(async () => {
-      const apiParams = {
+      // Build params object, then filter out undefined values
+      const rawParams = {
         content: params.content,
         description: params.description,
         projectId: params.project_id,
@@ -237,7 +250,10 @@ export class TodoistClient {
               durationUnit: params.duration_unit,
             }
           : {}),
-      } as AddTaskArgs;
+      };
+
+      // Remove undefined values to prevent 400 errors from Todoist API
+      const apiParams = this.removeUndefined(rawParams) as AddTaskArgs;
 
       return await this.api.addTask(apiParams);
     });
@@ -251,7 +267,8 @@ export class TodoistClient {
     params: Partial<z.infer<typeof UpdateTaskParamsSchema>>
   ): Promise<Task> {
     return this.handleRequest(async () => {
-      const apiParams = {
+      // Build params object, then filter out undefined values
+      const rawParams = {
         content: params.content,
         description: params.description,
         labels: params.labels,
@@ -271,7 +288,10 @@ export class TodoistClient {
               durationUnit: params.duration_unit,
             }
           : {}),
-      } as UpdateTaskArgs;
+      };
+
+      // Remove undefined values to prevent 400 errors from Todoist API
+      const apiParams = this.removeUndefined(rawParams) as UpdateTaskArgs;
 
       return await this.api.updateTask(taskId, apiParams);
     });
@@ -321,13 +341,16 @@ export class TodoistClient {
     params: z.infer<typeof CreateProjectParamsSchema>
   ): Promise<Project> {
     return this.handleRequest(async () => {
-      const apiParams: AddProjectArgs = {
+      const rawParams = {
         name: params.name,
         parentId: params.parent_id,
         color: params.color,
         isFavorite: params.favorite,
         viewStyle: params.view_style,
       };
+
+      // Remove undefined values to prevent 400 errors from Todoist API
+      const apiParams = this.removeUndefined(rawParams) as AddProjectArgs;
 
       return await this.api.addProject(apiParams);
     });
@@ -341,12 +364,15 @@ export class TodoistClient {
     params: Partial<z.infer<typeof UpdateProjectParamsSchema>>
   ): Promise<Project> {
     return this.handleRequest(async () => {
-      const apiParams: UpdateProjectArgs = {
+      const rawParams = {
         name: params.name,
         color: params.color,
         isFavorite: params.favorite,
         viewStyle: params.view_style,
       };
+
+      // Remove undefined values to prevent 400 errors from Todoist API
+      const apiParams = this.removeUndefined(rawParams) as UpdateProjectArgs;
 
       return await this.api.updateProject(projectId, apiParams);
     });
@@ -370,11 +396,16 @@ export class TodoistClient {
     params: { name: string; order?: number }
   ): Promise<Section> {
     return this.handleRequest(async () => {
-      return await this.api.addSection({
+      const rawParams = {
         name: params.name,
         projectId: projectId,
         order: params.order,
-      });
+      };
+
+      // Remove undefined values to prevent 400 errors from Todoist API
+      const apiParams = this.removeUndefined(rawParams);
+
+      return await this.api.addSection(apiParams);
     });
   }
 
@@ -404,12 +435,17 @@ export class TodoistClient {
     params: z.infer<typeof CreatePersonalLabelParamsSchema>
   ): Promise<Label> {
     return this.handleRequest(async () => {
-      return await this.api.addLabel({
+      const rawParams = {
         name: params.name,
         color: params.color,
         order: params.order,
         isFavorite: params.is_favorite,
-      });
+      };
+
+      // Remove undefined values to prevent 400 errors from Todoist API
+      const apiParams = this.removeUndefined(rawParams) as AddLabelArgs;
+
+      return await this.api.addLabel(apiParams);
     });
   }
 
@@ -421,12 +457,17 @@ export class TodoistClient {
     params: Partial<z.infer<typeof UpdatePersonalLabelParamsSchema>>
   ): Promise<Label> {
     return this.handleRequest(async () => {
-      return await this.api.updateLabel(labelId, {
+      const rawParams = {
         name: params.name,
         color: params.color,
         order: params.order,
         isFavorite: params.is_favorite,
-      });
+      };
+
+      // Remove undefined values to prevent 400 errors from Todoist API
+      const apiParams = this.removeUndefined(rawParams) as UpdateLabelArgs;
+
+      return await this.api.updateLabel(labelId, apiParams);
     });
   }
 
@@ -700,17 +741,52 @@ export class TodoistClient {
         description: z.string().optional().describe("Task description"),
         project_id: z.string().optional().describe("Project ID"),
         section_id: z.string().optional().describe("Section ID"),
+        parent_id: z
+          .string()
+          .optional()
+          .describe("Parent task ID (for subtasks)"),
+        order: z.number().optional().describe("Task order in list"),
         labels: z.array(z.string()).optional().describe("Label names"),
         priority: z
           .number()
           .min(1)
           .max(4)
           .optional()
-          .describe("Priority (1-4)"),
+          .describe("Priority (1-4, where 1=normal, 4=urgent)"),
         due_string: z
           .string()
           .optional()
-          .describe("Natural language due date (e.g., 'tomorrow')"),
+          .describe(
+            "Natural language due date (e.g., 'tomorrow', 'next Monday at 2pm')"
+          ),
+        due_date: z
+          .string()
+          .optional()
+          .describe(
+            "Specific due date in YYYY-MM-DD format (mutually exclusive with due_datetime)"
+          ),
+        due_datetime: z
+          .string()
+          .optional()
+          .describe(
+            "Specific due datetime in RFC3339 format (mutually exclusive with due_date)"
+          ),
+        due_lang: z
+          .string()
+          .optional()
+          .describe("Language for parsing due_string (e.g., 'en', 'de', 'fr')"),
+        assignee_id: z
+          .string()
+          .optional()
+          .describe("User ID to assign task to"),
+        duration: z
+          .number()
+          .optional()
+          .describe("Task duration amount (use with duration_unit)"),
+        duration_unit: z
+          .enum(["minute", "day"])
+          .optional()
+          .describe("Unit for duration: 'minute' or 'day'"),
       },
       { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
       async (params) => {
@@ -764,9 +840,17 @@ export class TodoistClient {
               description: params.description,
               project_id: params.project_id,
               section_id: params.section_id,
+              parent_id: params.parent_id,
+              order: params.order,
               labels: params.labels,
               priority: params.priority,
               due_string: params.due_string,
+              due_date: params.due_date,
+              due_datetime: params.due_datetime,
+              due_lang: params.due_lang,
+              assignee_id: params.assignee_id,
+              duration: params.duration,
+              duration_unit: params.duration_unit,
             });
 
             return {
@@ -901,8 +985,49 @@ export class TodoistClient {
           .describe("Task name to search for (if ID not provided)"),
         content: z.string().optional().describe("New task content"),
         description: z.string().optional().describe("New description"),
+        project_id: z.string().optional().describe("Move to project ID"),
+        section_id: z.string().optional().describe("Move to section ID"),
         labels: z.array(z.string()).optional().describe("New labels"),
-        priority: z.number().min(1).max(4).optional().describe("New priority"),
+        priority: z
+          .number()
+          .min(1)
+          .max(4)
+          .optional()
+          .describe("New priority (1-4, where 1=normal, 4=urgent)"),
+        due_string: z
+          .string()
+          .optional()
+          .describe(
+            "Natural language due date (e.g., 'tomorrow', 'next Monday at 2pm')"
+          ),
+        due_date: z
+          .string()
+          .optional()
+          .describe(
+            "Specific due date in YYYY-MM-DD format (mutually exclusive with due_datetime)"
+          ),
+        due_datetime: z
+          .string()
+          .optional()
+          .describe(
+            "Specific due datetime in RFC3339 format (mutually exclusive with due_date)"
+          ),
+        due_lang: z
+          .string()
+          .optional()
+          .describe("Language for parsing due_string (e.g., 'en', 'de', 'fr')"),
+        assignee_id: z
+          .string()
+          .optional()
+          .describe("User ID to assign task to"),
+        duration: z
+          .number()
+          .optional()
+          .describe("Task duration amount (use with duration_unit)"),
+        duration_unit: z
+          .enum(["minute", "day"])
+          .optional()
+          .describe("Unit for duration: 'minute' or 'day'"),
       },
       { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
       async (params) => {
