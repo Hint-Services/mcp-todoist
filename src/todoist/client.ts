@@ -1,6 +1,7 @@
 import {
   type AddLabelArgs,
   type AddProjectArgs,
+  type AddSectionArgs,
   type AddTaskArgs,
   type GetTasksArgs,
   type Label,
@@ -403,7 +404,7 @@ export class TodoistClient {
       };
 
       // Remove undefined values to prevent 400 errors from Todoist API
-      const apiParams = this.removeUndefined(rawParams);
+      const apiParams = this.removeUndefined(rawParams) as AddSectionArgs;
 
       return await this.api.addSection(apiParams);
     });
